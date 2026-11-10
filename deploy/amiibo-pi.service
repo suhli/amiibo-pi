@@ -1,0 +1,30 @@
+[Unit]
+Description=amiibo-pi web console
+Wants=amiibo-bt.service
+After=amiibo-bt.service
+
+[Service]
+User=amiibo-pi
+Group=amiibo-pi
+EnvironmentFile=/etc/amiibo-pi/server.env
+ExecStart=/usr/local/libexec/amiibo-pi/amiibo-pi
+WorkingDirectory=/var/lib/amiibo-pi
+StateDirectory=amiibo-pi
+StateDirectoryMode=0700
+UMask=0077
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=100
+
+[Install]
+WantedBy=multi-user.target
