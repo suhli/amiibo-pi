@@ -1,0 +1,9 @@
+/target/
+/web/dist/
+/web/node_modules/
+/web/.svelte-kit/
+*.sqlite*
+*.bin
+*.btmon
+.env
+/.pnpm-store/

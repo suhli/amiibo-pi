@@ -1,0 +1,19 @@
+[package]
+name = "amiibo-bluetooth"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+hex.workspace = true
+[target.'cfg(target_os = "linux")'.dependencies]
+bluer = {version="0.17.4", features=["bluetoothd","l2cap","rfcomm"]}
+
+nix = {version="0.29",features=["socket","uio"]}
+uuid = "1"
+[[bin]]
+name = "amiibo-bt"
+path = "src/main.rs"

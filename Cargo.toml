@@ -1,0 +1,15 @@
+[workspace]
+members = ["crates/amiibo-core","crates/switch-pro","crates/bluetooth","crates/server"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-only"
+
+[workspace.dependencies]
+anyhow = "1.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread","macros","net","io-util","time","sync","signal","process","fs"] }
+hex = "0.4"

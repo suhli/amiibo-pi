@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Installed root-owned. Invoked by amiibo-bt for the lifetime of one lease.
+set -euo pipefail
+umask 077
+control=/run/amiibo-bt/isolation
+private=/var/lib/amiibo-bt/bluez
+override=/run/systemd/system/bluetooth.service.d/91-amiibo-pi.conf
+launcher=/usr/local/libexec/amiibo-pi/bluez-mode
+case "${1:-}" in
+daemon)
+    mapfile -d '' -t args < "$control/argv"
+    exec "${args[@]}" --noplugin=input --configfile="$control/main.conf"
+    ;;
+restore)
+    if [[ -e $override ]]; then
+        grep -Fqx "# Managed by amiibo-pi" "$override" || { echo "Unexpected override owner" >&2; exit 1; }
+        rm -- "$override"
+    elif [[ ! -e $control/active ]]; then exit 0
+    fi
+    systemctl daemon-reload
+    systemctl restart bluetooth.service
+    rm -f -- "$control/active"
+    ;;
+prepare)
+    [[ ! -e $override && ! -e $control/active ]] || { echo "Unrecovered Bluetooth override" >&2; exit 1; }
+    shopt -s nullglob
+    adapters=(/sys/class/bluetooth/hci[0-9]*)
+    [[ ${#adapters[@]} == 1 ]] || { echo "Automatic bluetoothd isolation requires one adapter; see docs/bluetooth.md" >&2; exit 1; }
+    systemctl is-active --quiet bluetooth.service
+    pid=$(systemctl show -p MainPID --value bluetooth.service)
+    [[ $pid =~ ^[1-9][0-9]*$ && $(basename "$(readlink "/proc/$pid/exe")") == bluetoothd ]]
+    install -d -m 0700 "$control" "$private"
+    mapfile -d '' -t args < "/proc/$pid/cmdline"
+    [[ ${args[0]} == /* && -x ${args[0]} ]] || { echo "Unsupported bluetoothd launcher" >&2; exit 1; }
+    for arg in "${args[@]:1}"; do
+        case "$arg" in -f*|-p*|-P*|--configfile*|--plugin*|--noplugin*) echo "Custom bluetoothd configuration requires manual integration" >&2; exit 1;; esac
+    done
+    printf '%s\0' "${args[@]}" > "$control/argv"
+    # A private copy keeps system settings and bonds outside the emulated profile.
+    conf=/etc/bluetooth/main.conf
+    [[ -f $conf ]] || conf=/dev/null
+    awk '/^\[General\]/{general=1;found=1;print;print "DeviceID = usb:057e:2009:0001";next}
+         /^\[/{general=0}
+         general && /^[[:space:]]*DeviceID[[:space:]]*=/{next}
+         {print} END {if(!found)print "[General]\nDeviceID = usb:057e:2009:0001"}' "$conf" > "$control/main.conf"
+    # Seed only our isolated BlueZ database with session keys captured previously.
+    for info in /var/lib/amiibo-bt/bonds/*/*/info; do
+        peer=$(basename "$(dirname "$info")"); adapter=$(basename "$(dirname "$(dirname "$info")")")
+        install -D -m 0600 "$info" "$private/$adapter/$peer/info"
+    done
+    install -d -m 0755 "$(dirname "$override")"
+    touch "$control/active"
+    cat > "$control/dropin" <<EOF
+# Managed by amiibo-pi
+[Service]
+BindPaths=$private:/var/lib/bluetooth
+ExecStart=
+ExecStart=$launcher daemon
+EOF
+    install -m 0644 "$control/dropin" "$override"
+    systemctl daemon-reload
+    systemctl restart bluetooth.service
+    ;;
+*) echo "usage: bluez-mode prepare|restore|daemon" >&2; exit 2;;
+esac
